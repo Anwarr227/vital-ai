@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sepsis checker - Isala ziekenhuis</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 40px;
+        }
+
+        h1 {
+            color: #003366;
+        }
+
+        .box {
+            background: white;
+            padding: 20px;
+            border: 1px solid #ccc;
+            width: 500px;
+        }
+
+        input {
+            padding: 5px;
+            width: 200px;
+        }
+
+        button {
+            padding: 6px 14px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
+        button:hover {
+            background-color: #0055aa;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        table, th, td {
+            border: 1px solid #aaa;
+        }
+
+        th {
+            background-color: #003366;
+            color: white;
+            padding: 6px;
+            text-align: left;
+        }
+
+        td {
+            padding: 6px;
+        }
+
+        .HIGH   { color: red;    font-weight: bold; }
+        .MEDIUM { color: orange; font-weight: bold; }
+        .LOW    { color: green;  font-weight: bold; }
+
+        #resultaat { margin-top: 20px; }
+        #fout { color: red; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<h1>Sepsis risico checker &nbsp; <span id="api-status" style="font-size: 14px; font-weight: normal; color: gray;">API status: laden...</span></h1>
+<p>Voer een patiënt ID in om het sepsis risico te checken.</p>
+
+<div class="box">
+    <label><b>Patiënt ID:</b></label><br><br>
+    <input type="number" id="patient-id" placeholder="bijv. 2136">
+    <button onclick="checkRisico()">Controleer</button>
+    <button onclick="randomPatient()" style="background-color: gray;">Random</button>
+
+    <p id="fout"></p>
+
+    <div id="resultaat"></div>
+</div>
+
+<br>
+<p style="color: gray; font-size: 12px;">Differentatie 2 PraktijkOpdracht 15 Anwar Afkir</p>
+
+<script>
+    async function checkApiStatus() {
+        try {
+            var r = await fetch("/health");
+            var d = await r.json();
+            document.getElementById("api-status").innerText = "API online — " + d.patients_loaded + " patiënten geladen";
+            document.getElementById("api-status").style.color = "green";
+        } catch (e) {
+            document.getElementById("api-status").innerText = "API offline";
+            document.getElementById("api-status").style.color = "red";
+        }
+    }
+
+    checkApiStatus();
+
+    async function checkRisico() {
+        var id = document.getElementById("patient-id").value;
+        if (id == "") {
+            document.getElementById("fout").innerText = "Vul een patiënt ID in!";
+            return;
+        }
+        document.getElementById("fout").innerText = "";
+
+        var response = await fetch("/risk/" + id);
+
+        if (!response.ok) {
+            document.getElementById("fout").innerText = "Patiënt niet gevonden.";
+            document.getElementById("resultaat").innerHTML = "";
+            return;
+        }
+
+        var data = await response.json();
+        toonResultaat(data);
+    }
+
+    async function randomPatient() {
+        var r = await fetch("/patients");
+        var d = await r.json();
+        var ids = d.patient_ids;
+        var randomId = ids[Math.floor(Math.random() * ids.length)];
+        document.getElementById("patient-id").value = randomId;
+        checkRisico();
+    }
+
+    function toonResultaat(data) {
+        var html = "";
+
+        html += "<b>Resultaat voor patiënt " + data.patient_id + ":</b>";
+
+        html += "<table>";
+        html += "<tr><th>Meting</th><th>Waarde</th></tr>";
+        html += "<tr><td>Hartslag (HR)</td><td>" + (data.vitals.HR != null ? data.vitals.HR.toFixed(0) + " bpm" : "geen data") + "</td></tr>";
+        html += "<tr><td>Temperatuur</td><td>" + (data.vitals.Temp != null ? data.vitals.Temp.toFixed(1) + " °C" : "geen data") + "</td></tr>";
+        html += "<tr><td>O2 saturatie</td><td>" + (data.vitals.O2Sat != null ? data.vitals.O2Sat.toFixed(1) + " %" : "geen data") + "</td></tr>";
+        html += "<tr><td>Ademfrequentie</td><td>" + (data.vitals.Resp != null ? data.vitals.Resp.toFixed(1) + " /min" : "geen data") + "</td></tr>";
+        html += "</table>";
+
+        html += "<br><b>Risico niveau: <span class='" + data.risk_level + "'>" + data.risk_level + "</span></b> (score: " + data.risk_score + "/4)";
+
+        if (data.alerts.length > 0) {
+            html += "<br><br><b>Waarschuwingen:</b><ul>";
+            for (var i = 0; i < data.alerts.length; i++) {
+                html += "<li>" + data.alerts[i] + "</li>";
+            }
+            html += "</ul>";
+        } else {
+            html += "<br><br>Geen afwijkingen gevonden.";
+        }
+
+        document.getElementById("resultaat").innerHTML = html;
+    }
+</script>
+
+</body>
+</html>
